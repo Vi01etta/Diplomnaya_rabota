@@ -37,8 +37,6 @@ class VK_unload:
         input_id = self.get_id()
         params = dict(owner_id=input_id, access_token=self.token, need_system='1', v='5.130')
         res = requests.get(URL, params=params)
-        res.raise_for_status()
-        print(res.json())
         for result in res.json().values():
             for name_album in result['items']:
                 pprint('Для альбома "{}" id альбома: "{}"'.format(name_album["title"], name_album["id"]))
