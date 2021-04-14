@@ -6,6 +6,10 @@ import datetime
 from pprint import pprint
 
 
+def write_json(data, name_json):
+    with open(name_json, 'w') as file:
+        json.dump(data, file, ensure_ascii=False)
+
 
 class VK_unload:
     def __init__(self):
@@ -24,11 +28,6 @@ class VK_unload:
         id_vk = res.json()['response'][0]['id']
         return id_vk
 
-    def write_json(self, data, name_json):
-        with open(name_json, 'w') as file:
-            json.dump(data, file, ensure_ascii=False)
-
-
     def get_album_id(self):
 
         """Определение id альбома для выгрузки фото"""
@@ -43,7 +42,15 @@ class VK_unload:
         album_id = int(input('Введите id запрашиваемого альбома: '))
         return album_id
 
+    def get_largest(self, size_dict):
 
+        """Определение максимальный размер фотографий"""
+
+        if size_dict['width'] >= size_dict['height']:
+
+            return size_dict['width']
+        else:
+            return size_dict['height']
 
     def photo_json(self):
 
@@ -60,8 +67,31 @@ class VK_unload:
                                     'count': count,
                                     'extended': 1
                                 })
-        self.write_json(response.json()['response'], 'photo_info.json')
-        print('Создан файл "photo_info.json" с информацией по загружаемым фотографиям ')
+        photos = response.json()['response']
+        like_list = []
+        url_list = []
+        info = {}
+        photo_json = {}
+        info_list = []
+        for photo in photos['items']:
+            date = datetime.date.fromtimestamp(photo['date'])
+            likes = str(sum((photo['likes']).values())) + '.jpg'
+            if likes in like_list:
+                likes = str(likes) + ', ' + str(date)
+            photo_json['file_name'] = likes
+            like_list.append(likes)
+            sizes = photo['sizes']
+            max_size_url = (max(sizes, key=self.get_largest)['url'])
+            max_size_type = (max(sizes, key=self.get_largest)['type'])
+            photo_json['size'] = max_size_type
+            url_list.append(max_size_url)
+            copy_json = photo_json.copy()
+            info_list.append(copy_json)
+        write_json(info_list, 'data')
+        print('Создан файл "data.json" с информацией по загружаемым фотографиям ')
+        info['name'] = like_list
+        info['url'] = url_list
+        return info
 
 
 
@@ -69,38 +99,6 @@ class YaUploader:
     def __init__(self):
         token_ya = input("Введите Ваш токен Яндекс Диск: ")
         self.token = token_ya
-
-
-    def get_largest(self, size_dict):
-
-        """Определение максимальный размер фотографий"""
-
-        if size_dict['width'] >= size_dict['height']:
-            return size_dict['width']
-        else:
-            return size_dict['height']
-
-
-    def change_name(self):
-
-        """Присваивание имён фотографиям"""
-
-        photos = json.load(open('photo_info.json'))
-        like_list = []
-        url_list = []
-        info = {}
-        for photo in photos['items']:
-            date = datetime.date.fromtimestamp(photo['date'])
-            likes = str(sum((photo['likes']).values())) + '.jpg'
-            if likes in like_list:
-                likes = str(likes) + ', ' + str(date)
-            like_list.append(likes)
-            sizes = photo['sizes']
-            max_size_url = (max(sizes, key=self.get_largest)['url'])
-            url_list.append((max_size_url))
-        info['name'] = like_list
-        info['url'] = url_list
-        return info
 
 
 
@@ -114,14 +112,14 @@ class YaUploader:
         response = requests.put(url, headers=headers, params=params)
         return response.json()
 
-    def upload_file_to_disk(self, folder_name):
+    def upload_file_to_disk(self, info_data, folder_name):
 
         """Выгрузка файлов на Яндекс диск"""
 
         headers = {'Content-Type': 'application/json', 'Authorization': self.token}
         url = 'https://cloud-api.yandex.net/v1/disk/resources/upload'
         self.create_folder(folder_name)
-        info_dict = self.change_name()
+        info_dict = info_data
         for i in range(len(info_dict['url'])):
             name = str(info_dict['name'][i])
             progressive = round(100/len(info_dict['url'])*(i+1), 2)
@@ -137,6 +135,5 @@ class YaUploader:
 
 if __name__ == '__main__':
     vk_photos = VK_unload()
-    vk_photos.photo_json()
     yandex_disk = YaUploader()
-    yandex_disk.upload_file_to_disk('фото')
+    yandex_disk.upload_file_to_disk(vk_photos.photo_json(), 'фотки')
